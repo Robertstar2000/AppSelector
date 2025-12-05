@@ -1,14 +1,7 @@
 import { AppDefinition, AppStatus, AppType } from './types';
 
+// Removed chat app as LLM functionality was not needed
 export const INITIAL_APPS: AppDefinition[] = [
-  {
-    id: 'chat',
-    name: 'Chat',
-    description: 'AI Corporate Assistant',
-    iconName: 'MessageSquare',
-    status: AppStatus.ACTIVE,
-    type: AppType.INTERNAL_VIEW
-  },
   {
     id: 'agent',
     name: 'Agent',

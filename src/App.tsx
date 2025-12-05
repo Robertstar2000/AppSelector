@@ -10,7 +10,7 @@ import { INITIAL_APPS } from './constants';
 import { AppDefinition, AppType, AppStatus } from './types';
 import AppCard from './components/AppCard';
 import AdminModal from './components/AdminModal';
-import ChatOverlay from './components/ChatOverlay';
+// Removed ChatOverlay as LLM functionality was not needed
 
 function App() {
   const [apps, setApps] = useState<AppDefinition[]>([]);
@@ -22,7 +22,6 @@ function App() {
   
   // Modals
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [isChatOpen, setChatOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<AppDefinition | null>(null);
   
   // Toast
@@ -46,11 +45,7 @@ function App() {
 
   const handleAppClick = (app: AppDefinition) => {
     if (app.type === AppType.INTERNAL_VIEW) {
-      if (app.id === 'chat') {
-        setChatOpen(true);
-      } else {
-        showToast(`Opening internal view: ${app.name}`);
-      }
+      showToast(`Opening internal view: ${app.name}`);
     } else if (app.type === AppType.EXE) {
       // Simulate EXE launch behavior + Warning
       showToast(`Launching ${app.name} (${app.url}). Check your downloads or protocol handlers.`);
@@ -108,6 +103,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col relative bg-gray-50 text-slate-800">
+      <h1 style={{color: 'red'}}>Application is loading</h1>
       
       {/* Navbar */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
@@ -245,17 +241,12 @@ function App() {
       )}
 
       {/* Modals */}
-      <AdminModal 
-        isOpen={isEditModalOpen} 
-        onClose={() => setEditModalOpen(false)} 
+      <AdminModal
+        isOpen={isEditModalOpen}
+        onClose={() => setEditModalOpen(false)}
         onSave={handleSaveApp}
         onDelete={handleDeleteApp}
         app={editingApp}
-      />
-
-      <ChatOverlay 
-        isOpen={isChatOpen}
-        onClose={() => setChatOpen(false)}
       />
 
       {/* Admin Mode Overlay Hint (Optional visual cue when admin is active) */}
