@@ -367,13 +367,65 @@ app.get('/api/auto-backup', async (req, res) => {
       return res.status(400).json({ error: 'No backup file path configured' });
     }
 
+    // Clean path and determine if it's a directory or file
+    const cleanBackupPath = backupPath.replace(/["']/g, '');
+    const hasFileExtension = path.extname(cleanBackupPath) !== '';
+    const endsWithSeparator = cleanBackupPath.endsWith(path.sep) || cleanBackupPath.endsWith('/');
+
+    let searchPath;
+    if (!hasFileExtension && !endsWithSeparator) {
+      // No extension - treat as directory
+      searchPath = cleanBackupPath;
+    } else if (hasFileExtension) {
+      // Has extension - specific file
+      searchPath = path.dirname(cleanBackupPath);
+    } else {
+      // Ends with separator - directory
+      searchPath = cleanBackupPath.slice(0, -1); // Remove trailing separator
+    }
+
+    console.log('Searching for backup files in directory:', searchPath);
+
     try {
-      const backupData = await fs.readFile(backupPath, 'utf8');
-      const parsedData = JSON.parse(backupData);
-      res.json(parsedData);
-    } catch (fileError) {
-      // File doesn't exist or can't be read
-      res.status(404).json({ error: 'Auto-backup file not found: ' + fileError.message });
+      // Get all .json files in the directory
+      const files = await fs.readdir(searchPath);
+      const jsonFiles = files.filter(file => file.endsWith('.json'));
+
+      if (jsonFiles.length === 0) {
+        return res.status(404).json({ error: 'No backup files found in configured location' });
+      }
+
+      console.log('Found JSON files:', jsonFiles);
+
+      // Read all backup files and find the most recent by timestamp
+      let mostRecentBackup = null;
+      let mostRecentTime = 0;
+
+      for (const file of jsonFiles) {
+        try {
+          const filePath = path.join(searchPath, file);
+          const fileContent = await fs.readFile(filePath, 'utf8');
+          const backupData = JSON.parse(fileContent);
+
+          if (backupData.timestamp && backupData.timestamp > mostRecentTime) {
+            mostRecentTime = backupData.timestamp;
+            mostRecentBackup = backupData;
+          }
+        } catch (parseError) {
+          console.warn(`Skipping invalid backup file ${file}:`, parseError.message);
+        }
+      }
+
+      if (!mostRecentBackup) {
+        return res.status(404).json({ error: 'No valid backup files found' });
+      }
+
+      console.log('Using most recent backup from:', new Date(mostRecentTime));
+      res.json(mostRecentBackup);
+
+    } catch (dirError) {
+      console.error('Directory access error:', dirError);
+      res.status(400).json({ error: 'Unable to access backup directory: ' + dirError.message });
     }
 
   } catch (error) {
