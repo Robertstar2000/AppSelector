@@ -34,12 +34,46 @@ function App() {
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load apps from API
+  // Load apps from API and create initial server backup if needed
   useEffect(() => {
     const initializeApp = async () => {
       try {
         const response = await axios.get('http://localhost:3001/api/apps');
-        setApps(response.data);
+        const appsData = response.data;
+
+        // Check if auto-backup should be created for loaded data
+        try {
+          const [autoBackupResponse, lastBackupResponse] = await Promise.all([
+            axios.get('http://localhost:3001/api/settings/auto_backup'),
+            axios.get('http://localhost:3001/api/settings/last_backup_date')
+          ]);
+
+          const autoBackupEnabled = autoBackupResponse.data.value === 'true';
+          const lastBackup = lastBackupResponse.data.value;
+
+          // If auto-backup is enabled, apps exist, but no backup has been made yet,
+          // create an initial server backup
+          if (autoBackupEnabled && appsData.length > 0 && !lastBackup) {
+            try {
+              const timestamp = new Date().toISOString();
+              const backupData = {
+                timestamp,
+                apps: appsData,
+                settings: { autoBackup: true }
+              };
+
+              await axios.post('http://localhost:3001/api/auto-backup', backupData);
+              console.log('Initial server backup created at', timestamp);
+            } catch (backupError) {
+              console.warn('Failed to create initial server backup:', backupError);
+            }
+          }
+        } catch (settingsError) {
+          // Ignore settings errors during initialization
+          console.warn('Could not check backup settings during initialization:', settingsError);
+        }
+
+        setApps(appsData);
       } catch (error) {
         console.error('Failed to initialize app:', error);
         // Fallback to local constants if API fails

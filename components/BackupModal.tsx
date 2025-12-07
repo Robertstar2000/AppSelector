@@ -108,27 +108,80 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  const [uploadInputKey, setUploadInputKey] = useState(0);
+
   const handleRestoreBackup = async () => {
     if (!confirm('Are you sure you want to restore data? This will replace all current app data.')) {
       return;
     }
 
     try {
-      // Restore from server file system backup
-      const autoBackupResponse = await axios.get('http://localhost:3001/api/auto-backup');
+      // First try to restore from server auto-backup
+      try {
+        const autoBackupResponse = await axios.get('http://localhost:3001/api/auto-backup');
+        const backupData = autoBackupResponse.data;
 
-      if (autoBackupResponse.status === 404) {
-        alert('No auto-backup found. Please ensure auto-backup is enabled and data has been saved.');
-        return;
+        if (backupData && Array.isArray(backupData.apps)) {
+          // Successfully got server backup - use it
+          await performRestore(backupData);
+          return;
+        }
+      } catch (serverError) {
+        // Server auto-backup not found or error - try file upload fallback
+        console.log('Server auto-backup not available, attempting file upload...');
       }
 
-      const backupData = autoBackupResponse.data;
+      // Fallback: Show file upload dialog
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.json';
+      fileInput.style.display = 'none';
 
-      if (!backupData || !Array.isArray(backupData.apps)) {
-        alert('Invalid backup data format. The backup file appears to be corrupted.');
-        return;
-      }
+      fileInput.onchange = async (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (!file) {
+          alert('No file selected.');
+          return;
+        }
 
+        try {
+          const text = await file.text();
+          const backupData = JSON.parse(text);
+
+          if (!backupData || !Array.isArray(backupData.apps)) {
+            alert('Invalid backup file format. Please select a valid App Selector backup file.');
+            return;
+          }
+
+          await performRestore(backupData);
+        } catch (parseError) {
+          console.error('Error parsing backup file:', parseError);
+          alert('Error reading backup file. Please ensure it\'s a valid JSON backup file.');
+        }
+
+        // Reset file input
+        setUploadInputKey(prev => prev + 1);
+      };
+
+      document.body.appendChild(fileInput);
+      fileInput.click();
+
+      // Clean up
+      setTimeout(() => {
+        if (document.body.contains(fileInput)) {
+          document.body.removeChild(fileInput);
+        }
+      }, 100);
+
+    } catch (error) {
+      console.error('Error in restore process:', error);
+      alert('Failed to restore backup. Please check the server logs for more details.');
+    }
+  };
+
+  const performRestore = async (backupData: any) => {
+    try {
       // Restore the apps
       await axios.put('http://localhost:3001/api/apps', backupData.apps);
 
@@ -150,15 +203,11 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
       setLastBackup(backupData.timestamp);
       await loadApps(); // Refresh the apps list
 
-      alert('Data restored successfully from auto-backup! The page will reload.');
+      alert('Data restored successfully! The page will reload.');
       window.location.reload(); // Reload to show restored data
-    } catch (error) {
-      console.error('Error restoring backup:', error);
-      if (error.response && error.response.status === 404) {
-        alert('No auto-backup found. Please check that auto-backup is enabled and has saved data.');
-      } else {
-        alert('Failed to restore backup. Please check the server logs for more details.');
-      }
+    } catch (restoreError) {
+      console.error('Error during restore:', restoreError);
+      alert('Failed to apply backup data. Please check server logs for details.');
     }
   };
 
