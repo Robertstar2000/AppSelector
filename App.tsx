@@ -90,14 +90,18 @@ function App() {
   };
 
   const handleSaveApp = async (app: AppDefinition) => {
+    console.log('Attempting to save app:', app, 'editing:', !!editingApp);
     try {
       if (editingApp) {
-        await axios.put(`http://localhost:3001/api/apps/${app.id}`, app);
+        const response = await axios.put(`http://localhost:3001/api/apps/${app.id}`, app);
+        console.log('PUT response:', response);
       } else {
-        await axios.post('http://localhost:3001/api/apps', app);
+        const response = await axios.post('http://localhost:3001/api/apps', app);
+        console.log('POST response:', response);
       }
       // Refetch apps
       const response = await axios.get('http://localhost:3001/api/apps');
+      console.log('Refetched apps:', response.data);
       setApps(response.data);
       showToast('App saved successfully');
     } catch (error) {
@@ -138,6 +142,7 @@ function App() {
   };
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    console.log('handleDrop called, draggedIndex:', draggedIndex, 'dropIndex:', dropIndex);
     e.preventDefault();
     if (!isAdmin || draggedIndex === null || draggedIndex === dropIndex) return;
 
@@ -145,13 +150,18 @@ function App() {
     const draggedApp = filteredApps[draggedIndex];
     const dropApp = filteredApps[dropIndex];
 
+    console.log('draggedApp:', draggedApp, 'dropApp:', dropApp);
+
     // Get real indices in full apps array
     const realDraggedIndex = apps.findIndex(app => app.id === draggedApp.id);
     const realDropIndex = apps.findIndex(app => app.id === dropApp.id);
 
+    console.log('real indices:', realDraggedIndex, realDropIndex);
+
     if (realDraggedIndex !== -1 && realDropIndex !== -1) {
       newApps.splice(realDraggedIndex, 1);
       newApps.splice(realDropIndex, 0, draggedApp);
+      console.log('new array before save:', newApps.map(a => a.name));
       saveApps(newApps);
     }
 
