@@ -152,7 +152,7 @@ db.serialize(() => {
 // API endpoints
 // GET all apps
 app.get('/api/apps', (req, res) => {
-  db.all('SELECT * FROM apps ORDER BY id', (err, rows) => {
+  db.all('SELECT * FROM apps ORDER BY position, id', (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -164,15 +164,37 @@ app.get('/api/apps', (req, res) => {
 // POST new app
 app.post('/api/apps', (req, res) => {
   const { id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position } = req.body;
-  const stmt = db.prepare('INSERT OR REPLACE INTO apps (id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  stmt.run(id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position, function(err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json({ id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position });
-  });
-  stmt.finalize();
+
+  // If position not provided, get next available position
+  if (position === undefined || position === null) {
+    db.get('SELECT MAX(position) as maxPos FROM apps', (err, row) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      const nextPos = (row.maxPos || 0) + 1;
+
+      const stmt = db.prepare('INSERT OR REPLACE INTO apps (id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      stmt.run(id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, nextPos, function(err) {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+        res.json({ id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position: nextPos });
+      });
+      stmt.finalize();
+    });
+  } else {
+    const stmt = db.prepare('INSERT OR REPLACE INTO apps (id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run(id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position, function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position });
+    });
+    stmt.finalize();
+  }
 });
 
 // PUT update app
@@ -214,7 +236,7 @@ app.delete('/api/apps/:id', (req, res) => {
 
 // GET backup data
 app.get('/api/backup', (req, res) => {
-  db.all('SELECT * FROM apps ORDER BY id', (err, rows) => {
+  db.all('SELECT * FROM apps ORDER BY position, id', (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
