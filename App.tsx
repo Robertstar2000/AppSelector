@@ -180,6 +180,27 @@ function App() {
       console.log('Number of apps before update:', apps.length);
       setApps([...response.data]);
       console.log('Number of apps after update:', response.data.length);
+
+      // Auto-backup after individual app save if enabled
+      const autoBackupResponse = await axios.get('http://localhost:3001/api/settings/auto_backup');
+      const autoBackupEnabled = autoBackupResponse.data.value === 'true';
+
+      if (autoBackupEnabled) {
+        try {
+          const timestamp = new Date().toISOString();
+          const backupData = {
+            timestamp,
+            apps: response.data,
+            settings: { autoBackup: true }
+          };
+
+          await axios.post('http://localhost:3001/api/auto-backup', backupData);
+          console.log('Auto-backup completed after individual app save at', timestamp);
+        } catch (backupError) {
+          console.error('Auto-backup failed after individual app save:', backupError);
+        }
+      }
+
       showToast('App saved successfully');
     } catch (error) {
       console.error('Failed to save app:', error);
@@ -194,6 +215,27 @@ function App() {
       const response = await axios.get('http://localhost:3001/api/apps');
       setApps(response.data);
       setEditModalOpen(false);
+
+      // Auto-backup after individual app deletion if enabled
+      const autoBackupResponse = await axios.get('http://localhost:3001/api/settings/auto_backup');
+      const autoBackupEnabled = autoBackupResponse.data.value === 'true';
+
+      if (autoBackupEnabled) {
+        try {
+          const timestamp = new Date().toISOString();
+          const backupData = {
+            timestamp,
+            apps: response.data,
+            settings: { autoBackup: true }
+          };
+
+          await axios.post('http://localhost:3001/api/auto-backup', backupData);
+          console.log('Auto-backup completed after individual app deletion at', timestamp);
+        } catch (backupError) {
+          console.error('Auto-backup failed after individual app deletion:', backupError);
+        }
+      }
+
       showToast('App deleted successfully');
     } catch (error) {
       console.error('Failed to delete app:', error);
