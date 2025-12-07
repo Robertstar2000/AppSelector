@@ -302,15 +302,35 @@ app.post('/api/auto-backup', async (req, res) => {
     console.log('Original backup path:', backupPath);
     console.log('Clean backup path:', cleanBackupPath);
 
+    // Assume paths without file extensions are directories and append filename
+    let finalBackupPath = cleanBackupPath;
+    const hasFileExtension = path.extname(cleanBackupPath) !== '';
+    const endsWithSeparator = cleanBackupPath.endsWith(path.sep) || cleanBackupPath.endsWith('/');
+
+    if (!hasFileExtension) {
+      // No file extension - treat as directory and append filename
+      finalBackupPath = path.join(cleanBackupPath, 'apps-backup.json');
+      console.log('No file extension, treating as directory:', finalBackupPath);
+    } else if (endsWithSeparator) {
+      // Ends with separator - treat as directory
+      finalBackupPath = path.join(cleanBackupPath, 'apps-backup.json');
+      console.log('Path ends with separator, treating as directory:', finalBackupPath);
+    } else {
+      // Has file extension - use as-is
+      console.log('Path has file extension, using as filename:', finalBackupPath);
+    }
+
+    console.log('Final backup path to write:', finalBackupPath);
+
     // Ensure the backup directory exists
-    const backupDir = path.dirname(cleanBackupPath);
+    const backupDir = path.dirname(finalBackupPath);
     console.log('Backup directory:', backupDir);
     await fs.mkdir(backupDir, { recursive: true });
 
     // Write backup data to file
     const { timestamp, apps, settings } = req.body;
     const backupData = { timestamp, apps, settings };
-    await fs.writeFile(cleanBackupPath, JSON.stringify(backupData, null, 2), 'utf8');
+    await fs.writeFile(finalBackupPath, JSON.stringify(backupData, null, 2), 'utf8');
 
     // Update last backup date
     return new Promise((resolve, reject) => {
