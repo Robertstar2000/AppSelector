@@ -50,8 +50,8 @@ const AppCard: React.FC<AppCardProps> = ({ app, onClick, isAdmin, onEdit }) => {
       {isMaintenance && !isAdmin && (
         <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10 w-full flex justify-center pointer-events-none">
            <div className="bg-yellow-100 border border-yellow-200 text-yellow-800 px-0 py-0 rounded-full flex items-center gap-0 shadow-xs">
-             <LucideIcons.HardHat className="w-1.5 h-1.5" />
-             <span className="text-[4px] font-bold uppercase tracking-wider">Under Construction</span>
+             <LucideIcons.HardHat className="w-2 h-2" />
+             <span className="text-[6px] font-bold uppercase tracking-wider">Under Construction</span>
            </div>
         </div>
       )}
@@ -60,8 +60,8 @@ const AppCard: React.FC<AppCardProps> = ({ app, onClick, isAdmin, onEdit }) => {
       {isDisabled && !isAdmin && (
         <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10 w-full flex justify-center pointer-events-none">
            <div className="bg-red-100 border border-red-200 text-red-800 px-0 py-0 rounded-full flex items-center gap-0 shadow-xs">
-             <LucideIcons.XCircle className="w-1.5 h-1.5" />
-             <span className="text-[4px] font-bold uppercase tracking-wider">Not Yet Available</span>
+             <LucideIcons.XCircle className="w-2 h-2" />
+             <span className="text-[6px] font-bold uppercase tracking-wider">Not Yet Available</span>
            </div>
         </div>
       )}
