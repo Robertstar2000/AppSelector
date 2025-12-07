@@ -285,24 +285,16 @@ app.put('/api/apps', (req, res) => {
 // Auto-backup endpoint (writes to server file system)
 app.post('/api/auto-backup', async (req, res) => {
   try {
-    // Get settings from database
-    const [autoBackupEnabled, backupPath] = await Promise.all([
-      new Promise((resolve, reject) => {
-        db.get('SELECT value FROM system_settings WHERE key = ?', ['auto_backup'], (err, row) => {
-          if (err) reject(err);
-          else resolve(row ? row.value === 'true' : false);
-        });
-      }),
-      new Promise((resolve, reject) => {
-        db.get('SELECT value FROM system_settings WHERE key = ?', ['backup_file_path'], (err, row) => {
-          if (err) reject(err);
-          else resolve(row ? row.value : '');
-        });
-      })
-    ]);
+    // Get backup path from settings - only require path to be configured
+    const backupPath = await new Promise((resolve, reject) => {
+      db.get('SELECT value FROM system_settings WHERE key = ?', ['backup_file_path'], (err, row) => {
+        if (err) reject(err);
+        else resolve(row ? row.value : '');
+      });
+    });
 
-    if (!autoBackupEnabled || !backupPath.trim()) {
-      return res.status(400).json({ error: 'Auto-backup not enabled or path not configured' });
+    if (!backupPath.trim()) {
+      return res.status(400).json({ error: 'Backup file path not configured' });
     }
 
     // Ensure the backup directory exists
