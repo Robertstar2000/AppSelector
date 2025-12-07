@@ -59,15 +59,17 @@ Each backup contains:
 
 ## Step-by-Step Guides
 
-### Enabling Auto-Backup
+### Setting Up Backup Location
 
 1. **Enter Admin Mode** (click version number 5 times)
 2. **Open Backup Manager** (download icon in top-right)
-3. **Check "Enable automatic backup on app start"**
-4. **Set Backup File Path** (required for auto-backup):
+3. **Set Backup File Path** (required for all backup operations):
    ```
-   Example: C:\Users\YourName\AppSelector\Backup
+   Examples:
+   C:\Users\YourName\AppSelector\Backup\apps.json
+   /home/user/backup/apps.json
    ```
+4. **Optionally enable auto-backup** with the checkbox
 5. **Save Settings**
 
 ### Creating Manual Backup
@@ -75,18 +77,22 @@ Each backup contains:
 1. **Enter Admin Mode**
 2. **Click Download Icon** in header
 3. **Choose "Download Backup"**
-4. **Save the JSON file** (auto-named like `apps-backup-2025-12-07.json`)
+4. **Two actions occur automatically:**
+   - JSON file downloads to your browser
+   - Backup is silently saved to the configured server path
 
 ### Restoring from Backup
+
+**Restores from the configured backup path on the server:**
 
 1. **Enter Admin Mode**
 2. **Click Download Icon** in header
 3. **Choose "Restore Data"**
-4. **Important**: Set backup path if restoring auto-saved data
-5. **Click "Restore Data" button**
-6. **Select JSON backup file** (or use auto-saved data)
-7. **Confirm overwrite** when prompted
-8. **Page reloads automatically** with restored data
+4. **System reads from configured backup path** (no file selection needed)
+5. **Confirm overwrite** when prompted
+6. **Page reloads automatically** with restored data
+
+**Note**: Restore only works with backups saved to the configured server path. No file dialog appears.
 
 ## Technical Details
 

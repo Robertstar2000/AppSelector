@@ -86,12 +86,12 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
       link.click();
       URL.revokeObjectURL(url);
 
-      // Save backup to server file system if auto-backup is configured
-      if (autoBackup && backupFilePath.trim()) {
+      // Save backup to server file system if backup path is configured
+      if (backupFilePath.trim()) {
         try {
-          const serverBackupData = { timestamp, apps: freshApps, settings: { autoBackup: true } };
+          const serverBackupData = { timestamp, apps: freshApps, settings: { autoBackup } };
           await axios.post('http://localhost:3001/api/auto-backup', serverBackupData);
-          console.log('Manual backup also saved to server auto-backup location');
+          console.log('Manual backup saved to server backup location');
         } catch (serverError) {
           console.error('Failed to save to server backup location:', serverError);
         }
@@ -115,68 +115,31 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    try {
-      // First try to restore from server auto-backup
-      try {
-        const autoBackupResponse = await axios.get('http://localhost:3001/api/auto-backup');
-        const backupData = autoBackupResponse.data;
+    // Check if backup path is configured
+    if (!backupFilePath.trim()) {
+      alert('No backup file path configured. Please set the backup file path in settings first.');
+      return;
+    }
 
-        if (backupData && Array.isArray(backupData.apps)) {
-          // Successfully got server backup - use it
-          await performRestore(backupData);
-          return;
-        }
-      } catch (serverError) {
-        // Server auto-backup not found or error - try file upload fallback
-        console.log('Server auto-backup not available, attempting file upload...');
+    try {
+      // Try to restore from server backup at configured path
+      const autoBackupResponse = await axios.get('http://localhost:3001/api/auto-backup');
+      const backupData = autoBackupResponse.data;
+
+      if (!backupData || !Array.isArray(backupData.apps)) {
+        alert('No valid backup found at configured path. Make sure backups have been created to this location.');
+        return;
       }
 
-      // Fallback: Show file upload dialog
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = '.json';
-      fileInput.style.display = 'none';
-
-      fileInput.onchange = async (e: Event) => {
-        const target = e.target as HTMLInputElement;
-        const file = target.files?.[0];
-        if (!file) {
-          alert('No file selected.');
-          return;
-        }
-
-        try {
-          const text = await file.text();
-          const backupData = JSON.parse(text);
-
-          if (!backupData || !Array.isArray(backupData.apps)) {
-            alert('Invalid backup file format. Please select a valid App Selector backup file.');
-            return;
-          }
-
-          await performRestore(backupData);
-        } catch (parseError) {
-          console.error('Error parsing backup file:', parseError);
-          alert('Error reading backup file. Please ensure it\'s a valid JSON backup file.');
-        }
-
-        // Reset file input
-        setUploadInputKey(prev => prev + 1);
-      };
-
-      document.body.appendChild(fileInput);
-      fileInput.click();
-
-      // Clean up
-      setTimeout(() => {
-        if (document.body.contains(fileInput)) {
-          document.body.removeChild(fileInput);
-        }
-      }, 100);
+      await performRestore(backupData);
 
     } catch (error) {
-      console.error('Error in restore process:', error);
-      alert('Failed to restore backup. Please check the server logs for more details.');
+      console.error('Error restoring backup:', error);
+      if (error.response && error.response.status === 404) {
+        alert('No backup file found at configured path. Please ensure backups have been created to this location.');
+      } else {
+        alert('Failed to restore backup. Please check the server logs for more details.');
+      }
     }
   };
 
