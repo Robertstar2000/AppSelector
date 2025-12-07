@@ -26,7 +26,19 @@ db.serialize(() => {
       iconName TEXT,
       url TEXT,
       status TEXT NOT NULL,
-      type TEXT NOT NULL
+      type TEXT NOT NULL,
+      sourceCode TEXT,
+      backendLocation TEXT,
+      author TEXT,
+      position INTEGER
+    )
+  `);
+
+  // Create system settings table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
     )
   `);
 
@@ -151,14 +163,14 @@ app.get('/api/apps', (req, res) => {
 
 // POST new app
 app.post('/api/apps', (req, res) => {
-  const { id, name, description, iconName, url, status, type } = req.body;
-  const stmt = db.prepare('INSERT OR REPLACE INTO apps (id, name, description, iconName, url, status, type) VALUES (?, ?, ?, ?, ?, ?, ?)');
-  stmt.run(id, name, description, iconName, url, status, type, function(err) {
+  const { id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position } = req.body;
+  const stmt = db.prepare('INSERT OR REPLACE INTO apps (id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run(id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position, function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
-    res.json({ id, name, description, iconName, url, status, type });
+    res.json({ id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position });
   });
   stmt.finalize();
 });
@@ -166,9 +178,9 @@ app.post('/api/apps', (req, res) => {
 // PUT update app
 app.put('/api/apps/:id', (req, res) => {
   const { id } = req.params;
-  const { name, description, iconName, url, status, type } = req.body;
-  const stmt = db.prepare('UPDATE apps SET name = ?, description = ?, iconName = ?, url = ?, status = ?, type = ? WHERE id = ?');
-  stmt.run(name, description, iconName, url, status, type, id, function(err) {
+  const { name, description, iconName, url, status, type, sourceCode, backendLocation, author, position } = req.body;
+  const stmt = db.prepare('UPDATE apps SET name = ?, description = ?, iconName = ?, url = ?, status = ?, type = ?, sourceCode = ?, backendLocation = ?, author = ?, position = ? WHERE id = ?');
+  stmt.run(name, description, iconName, url, status, type, sourceCode, backendLocation, author, position, id, function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -176,7 +188,7 @@ app.put('/api/apps/:id', (req, res) => {
     if (this.changes === 0) {
       res.status(404).json({ error: 'App not found' });
     } else {
-      res.json({ id, name, description, iconName, url, status, type });
+      res.json({ id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position });
     }
   });
   stmt.finalize();
@@ -235,10 +247,10 @@ app.put('/api/apps', (req, res) => {
         return;
       }
 
-      const stmt = db.prepare('INSERT INTO apps (id, name, description, iconName, url, status, type) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const stmt = db.prepare('INSERT INTO apps (id, name, description, iconName, url, status, type, sourceCode, backendLocation, author, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
-      apps.forEach(app => {
-        stmt.run(app.id, app.name, app.description || '', app.iconName || 'Box', app.url, app.status, app.type);
+      apps.forEach((app, index) => {
+        stmt.run(app.id, app.name, app.description || '', app.iconName || 'Box', app.url, app.status, app.type, app.sourceCode, app.backendLocation, app.author, app.position ?? index);
       });
 
       stmt.finalize();
@@ -246,6 +258,32 @@ app.put('/api/apps', (req, res) => {
       res.json({ message: 'Apps updated', count: apps.length });
     });
   });
+});
+
+// System settings endpoints
+app.get('/api/settings/:key', (req, res) => {
+  const { key } = req.params;
+  db.get('SELECT value FROM system_settings WHERE key = ?', [key], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json({ key, value: row ? row.value : null });
+  });
+});
+
+app.put('/api/settings/:key', (req, res) => {
+  const { key } = req.params;
+  const { value } = req.body;
+  const stmt = db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)');
+  stmt.run(key, value, function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json({ key, value });
+  });
+  stmt.finalize();
 });
 
 // Start server

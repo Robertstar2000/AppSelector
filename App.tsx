@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import {
   Plus,
@@ -12,6 +12,7 @@ import { INITIAL_APPS } from './constants';
 import { AppDefinition, AppType, AppStatus } from './types';
 import AppCard from './components/AppCard';
 import AdminModal from './components/AdminModal';
+import BackupModal from './components/BackupModal';
 // Removed ChatOverlay as LLM functionality was not needed
 
 function App() {
@@ -24,36 +25,108 @@ function App() {
 
   // Admin Mode Triggers
   const [secretCount, setSecretCount] = useState(0);
-  
+
   // Modals
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<AppDefinition | null>(null);
+  const [isBackupModalOpen, setBackupModalOpen] = useState(false);
   
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load apps from API
+  // Load apps from API and check auto-backup
   useEffect(() => {
-    const fetchApps = async () => {
+    const initializeApp = async () => {
       try {
         const response = await axios.get('http://localhost:3001/api/apps');
         setApps(response.data);
+
+        // Check if auto-backup is enabled and path is set
+        const [autoBackupResponse, backupPathResponse] = await Promise.all([
+          axios.get('http://localhost:3001/api/settings/auto_backup'),
+          axios.get('http://localhost:3001/api/settings/backup_file_path')
+        ]);
+
+        const autoBackupEnabled = autoBackupResponse.data.value === 'true';
+        const backupPath = backupPathResponse.data.value || '';
+
+        if (autoBackupEnabled && backupPath.trim()) {
+          // Auto-backup data only if both enabled AND path is set
+          const timestamp = new Date().toISOString();
+          await axios.put('http://localhost:3001/api/settings/last_backup_date', { value: timestamp });
+
+          const backupData = {
+            timestamp,
+            apps: response.data,
+            settings: { autoBackup: true, backupFilePath: backupPath }
+          };
+
+          // Save to the specified backup file path (for demo, using localStorage with meaningful key)
+          const backupKey = `backup_${backupPath.replace(/[/\\]/g, '_').replace(/[^\w]/g, '')}`;
+          localStorage.setItem(backupKey, JSON.stringify(backupData));
+          console.log('Auto-backup completed to path:', backupPath, 'at', timestamp);
+        } else if (autoBackupEnabled && !backupPath.trim()) {
+          console.warn('Auto-backup is enabled but no backup file path is set');
+        }
       } catch (error) {
-        console.error('Failed to load apps:', error);
+        console.error('Failed to initialize app:', error);
         // Fallback to local constants if API fails
         setApps(INITIAL_APPS);
       }
     };
-    fetchApps();
+    initializeApp();
   }, []);
 
   const saveApps = async (newApps: AppDefinition[]) => {
+    // Add position information to each app
+    const appsWithPositions = newApps.map((app, index) => ({
+      ...app,
+      position: index
+    }));
+
     try {
-      await axios.put('http://localhost:3001/api/apps', newApps);
-      setApps(newApps);
+      await axios.put('http://localhost:3001/api/apps', appsWithPositions);
+      setApps(appsWithPositions);
+
+      // Auto-backup if enabled and path is set
+      const [autoBackupResponse, backupPathResponse] = await Promise.all([
+        axios.get('http://localhost:3001/api/settings/auto_backup'),
+        axios.get('http://localhost:3001/api/settings/backup_file_path')
+      ]);
+
+      const autoBackupEnabled = autoBackupResponse.data.value === 'true';
+      const backupPath = backupPathResponse.data.value || '';
+
+      if (autoBackupEnabled && backupPath.trim()) {
+        // Auto-backup data
+        const timestamp = new Date().toISOString();
+        await axios.put('http://localhost:3001/api/settings/last_backup_date', { value: timestamp });
+
+        const backupData = {
+          timestamp,
+          apps: appsWithPositions,
+          settings: { autoBackup: true, backupFilePath: backupPath }
+        };
+
+        // Save to the specified backup file path (for demo, using localStorage with meaningful key)
+        const backupKey = `backup_${backupPath.replace(/[/\\]/g, '_').replace(/[^\w]/g, '')}`;
+        localStorage.setItem(backupKey, JSON.stringify(backupData));
+        console.log('Auto-backup completed to path:', backupPath, 'at', timestamp);
+      }
     } catch (error) {
-      console.error('Failed to save apps:', error);
-      setApps(newApps); // Update UI anyway
+      console.error('Failed to save apps or auto-backup:', error);
+      setApps(appsWithPositions); // Update UI anyway
+    }
+  };
+
+  // Function to update last backup date
+  const updateLastBackupDate = async () => {
+    try {
+      const timestamp = new Date().toISOString();
+      await axios.put('http://localhost:3001/api/settings/last_backup_date', { value: timestamp });
+      console.log('Last backup date updated:', timestamp);
+    } catch (error) {
+      console.error('Failed to update last backup date:', error);
     }
   };
 
@@ -96,13 +169,16 @@ function App() {
         const response = await axios.put(`http://localhost:3001/api/apps/${app.id}`, app);
         console.log('PUT response:', response);
       } else {
+        console.log('Creating new app via POST:', app);
         const response = await axios.post('http://localhost:3001/api/apps', app);
         console.log('POST response:', response);
       }
       // Refetch apps
       const response = await axios.get('http://localhost:3001/api/apps');
-      console.log('Refetched apps:', response.data);
-      setApps(response.data);
+      console.log('Refetched apps after save:', response.data);
+      console.log('Number of apps before update:', apps.length);
+      setApps([...response.data]);
+      console.log('Number of apps after update:', response.data.length);
       showToast('App saved successfully');
     } catch (error) {
       console.error('Failed to save app:', error);
@@ -131,7 +207,7 @@ function App() {
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
-    if (!isAdmin) return;
+    if (!isAdmin || searchQuery.trim() !== '') return; // Prevent drag when searching
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -172,10 +248,15 @@ function App() {
     setDraggedIndex(null);
   };
 
-  const filteredApps = apps.filter(app => 
-    app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    app.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredApps = apps.filter(app => {
+    const matches = app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                   app.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matches;
+  });
+
+  console.log('apps count:', apps.length);
+  console.log('filteredApps count:', filteredApps.length);
+  console.log('searchQuery:', `"${searchQuery}"`);
 
   return (
     <div className="min-h-screen flex flex-col relative bg-gray-50 text-slate-800">
@@ -215,29 +296,29 @@ function App() {
                   <Unlock className="w-3 h-3" /> Admin Mode
                 </div>
                 <button
-                  onClick={() => {
-                    // Client-side backup to local file
-                    const backupData = { timestamp: new Date().toISOString(), apps: apps };
-                    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `apps-backup-${new Date().toISOString().split('T')[0]}.json`;
-                    link.click();
-                    URL.revokeObjectURL(url);
-                  }}
+                  onClick={() => setBackupModalOpen(true)}
                   className="p-2 text-gray-600 hover:text-tallman-blue hover:bg-blue-50 rounded-full transition-colors"
-                  title="Download Backup"
+                  title="Open Backup & Restore Manager"
                 >
                   <Download className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsAdmin(false);
+                    showToast("Exited Admin Mode");
+                  }}
+                  className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-xs font-medium transition-colors flex items-center gap-1"
+                  title="Exit Admin Mode"
+                >
+                  Exit Admin
                 </button>
               </>
             )}
 
             {/* Date/Time Placeholder for dashboard feel */}
             <div className="text-right hidden sm:block">
-                <div className="text-sm font-bold text-gray-700">{new Date().toLocaleDateString()}</div>
-                <div className="text-xs text-gray-500">Corporate Portal</div>
+              <div className="text-sm font-bold text-gray-700">{new Date().toLocaleDateString()}</div>
+              <div className="text-xs text-gray-500">Corporate Portal</div>
             </div>
           </div>
         </div>
@@ -270,42 +351,45 @@ function App() {
             </p>
         </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
-          {filteredApps.map((app, index) => (
-            <div
-              key={app.id}
-              draggable={isAdmin}
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
-              className={`${isAdmin ? 'cursor-move' : ''} ${draggedIndex === index ? 'opacity-50' : ''}`}
-            >
-              <AppCard
-                app={app}
-                isAdmin={isAdmin}
-                onClick={handleAppClick}
-                onEdit={handleEdit}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Add New Button (Admin Only) */}
-        {isAdmin && (
-          <div className="flex justify-center">
-            <button
-                onClick={handleAddNew}
-                className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-tallman-blue hover:bg-blue-50 transition-all group"
-            >
-                <div className="w-5.5 h-5.5 rounded-full bg-gray-100 flex items-center justify-center mb-2 group-hover:bg-blue-100 transition-colors">
-                    <Plus className="w-3 h-3 text-gray-400 group-hover:text-tallman-blue" />
-                </div>
-                <span className="text-xs font-semibold text-gray-500 group-hover:text-tallman-blue">Add Application</span>
-            </button>
+        {/* Apps Container with Scrolling */}
+        <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
+          {/* Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+            {filteredApps.map((app, index) => (
+              <div
+                key={app.id}
+                draggable={isAdmin && searchQuery.trim() === ''}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`${isAdmin && searchQuery.trim() === '' ? 'cursor-move' : ''} ${draggedIndex === index ? 'opacity-50' : ''}`}
+              >
+                <AppCard
+                  app={app}
+                  isAdmin={isAdmin}
+                  onClick={handleAppClick}
+                  onEdit={handleEdit}
+                />
+              </div>
+            ))}
           </div>
-        )}
+
+          {/* Add New Button (Admin Only) */}
+          {isAdmin && (
+            <div className="flex justify-center mb-6">
+              <button
+                  onClick={handleAddNew}
+                  className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-tallman-blue hover:bg-blue-50 transition-all group"
+              >
+                  <div className="w-5.5 h-5.5 rounded-full bg-gray-100 flex items-center justify-center mb-2 group-hover:bg-blue-100 transition-colors">
+                      <Plus className="w-3 h-3 text-gray-400 group-hover:text-tallman-blue" />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-500 group-hover:text-tallman-blue">Add Application</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {filteredApps.length === 0 && !isAdmin && (
             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -352,6 +436,11 @@ function App() {
         onSave={handleSaveApp}
         onDelete={handleDeleteApp}
         app={editingApp}
+      />
+
+      <BackupModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setBackupModalOpen(false)}
       />
 
       {/* Admin Mode Overlay Hint (Optional visual cue when admin is active) */}
