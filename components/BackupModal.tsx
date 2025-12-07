@@ -127,7 +127,7 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
       const backupData = autoBackupResponse.data;
 
       if (!backupData || !Array.isArray(backupData.apps)) {
-        alert('No valid backup found at configured path. Make sure backups have been created to this location.');
+        alert('No valid backup data found. Make sure backups have been created at the configured path: ' + backupFilePath);
         return;
       }
 
@@ -135,10 +135,22 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
 
     } catch (error) {
       console.error('Error restoring backup:', error);
+      const errorDetails = error.response?.data?.error || error.response?.data || 'Unknown error';
+
       if (error.response && error.response.status === 404) {
-        alert('No backup file found at configured path. Please ensure backups have been created to this location.');
+        if (errorDetails.includes('No backup files found')) {
+          alert(`Directory exists but no backup files found at: ${backupFilePath}\n\nMake sure admin changes have been made to trigger auto-backups, or manually download backups to this directory.`);
+        } else if (errorDetails.includes('No backup file path configured')) {
+          alert('Backup file path is not configured in settings. Please set a path first.');
+        } else if (errorDetails.includes('Unable to access backup directory')) {
+          alert(`Cannot access backup directory: ${backupFilePath}\n\nCheck that the path exists and is writable.`);
+        } else {
+          alert(`No backup found at configured path: ${backupFilePath}`);
+        }
+      } else if (error.response && error.response.status === 400) {
+        alert(`Configuration error: ${errorDetails}`);
       } else {
-        alert('Failed to restore backup. Please check the server logs for more details.');
+        alert(`Server error restoring backup: ${errorDetails}`);
       }
     }
   };
