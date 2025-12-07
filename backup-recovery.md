@@ -11,12 +11,14 @@ The App Selector includes a comprehensive backup and recovery system that allows
 #### 1. Automatic Backup
 - **Triggers when app changes are saved** (adding, editing, or reordering apps)
 - **Requires configuration**: Must enable auto-backup AND set a backup file path
-- **Stores data locally** using browser's localStorage with a key based on your configured path
+- **Stores data on server file system** at the configured backup path location
+- **Browser-independent**: Backup persists regardless of which browser or device is used
 - **Silent operation**: Happens in the background without user interaction
 
 #### 2. Manual Backup
 - **User-initiated export** of current app configuration
-- **Downloads a JSON file** with all application data
+- **Downloads a JSON file** with all application data to your local machine
+- **Updates auto-backup location** if auto-backup is enabled and configured
 - **Immediately accessible** - no configuration required
 - **Timestamped filename** for easy identification
 
@@ -43,20 +45,17 @@ Each backup contains:
 
 ## How Recovery Works
 
-### Two Recovery Methods
+### Recovery Method
 
-#### 1. Restore from Manual Backup
+#### Restore from Server Auto-Backup
 - **Access**: Admin Mode → Download Icon → "Restore Data"
 - **Process**:
-  1. Click "Restore Data" button
-  2. Select previously downloaded backup file (.json)
+  1. Click "Restore Data" button (reads from server backup file)
+  2. System retrieves backup from configured file path on server
   3. Confirm overwrite of current data
   4. System reloads with restored configuration
 
-#### 2. Restore from Auto-Backup
-- **Access**: Same "Restore Data" dialog
-- **Process**: Same as manual restore, using auto-saved data
-- **Key Difference**: Uses locally stored data instead of uploaded file
+**Note**: Manual backup files can still be downloaded, but restoration now uses the server-stored auto-backup for consistency across all users and devices.
 
 ## Step-by-Step Guides
 
@@ -124,12 +123,12 @@ Each backup contains:
 
 ### File Storage
 
-- **Manual Backups**: Download as JSON files via browser
-- **Auto-Backups**: Stored in localStorage with derived keys:
-  ```javascript
-  const backupKey = `backup_${backupPath.replace(/[/\\]/g, '_').replace(/[^\w]/g, '')}`;
-  localStorage.setItem(backupKey, JSON.stringify(backupData));
-  ```
+- **Manual Backups**: Download as JSON files via browser to user's local machine
+- **Auto-Backups**: Stored as JSON file on server file system at the configured backup path
+  - File is written directly to the server file system using Node.js fs APIs
+  - Path is configured by administrator and can be any accessible directory (e.g., `C:\Backup\Apps\` or `/home/user/backup/`)
+  - Server creates backup file at the specified location with JSON data
+  - Browser-independent - all users access the same backup data
 
 ## Important Notes
 

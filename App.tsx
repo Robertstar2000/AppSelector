@@ -34,40 +34,12 @@ function App() {
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load apps from API and check auto-backup
+  // Load apps from API
   useEffect(() => {
     const initializeApp = async () => {
       try {
         const response = await axios.get('http://localhost:3001/api/apps');
         setApps(response.data);
-
-        // Check if auto-backup is enabled and path is set
-        const [autoBackupResponse, backupPathResponse] = await Promise.all([
-          axios.get('http://localhost:3001/api/settings/auto_backup'),
-          axios.get('http://localhost:3001/api/settings/backup_file_path')
-        ]);
-
-        const autoBackupEnabled = autoBackupResponse.data.value === 'true';
-        const backupPath = backupPathResponse.data.value || '';
-
-        if (autoBackupEnabled && backupPath.trim()) {
-          // Auto-backup data only if both enabled AND path is set
-          const timestamp = new Date().toISOString();
-          await axios.put('http://localhost:3001/api/settings/last_backup_date', { value: timestamp });
-
-          const backupData = {
-            timestamp,
-            apps: response.data,
-            settings: { autoBackup: true, backupFilePath: backupPath }
-          };
-
-          // Save to the specified backup file path (for demo, using localStorage with meaningful key)
-          const backupKey = `backup_${backupPath.replace(/[/\\]/g, '_').replace(/[^\w]/g, '')}`;
-          localStorage.setItem(backupKey, JSON.stringify(backupData));
-          console.log('Auto-backup completed to path:', backupPath, 'at', timestamp);
-        } else if (autoBackupEnabled && !backupPath.trim()) {
-          console.warn('Auto-backup is enabled but no backup file path is set');
-        }
       } catch (error) {
         console.error('Failed to initialize app:', error);
         // Fallback to local constants if API fails
@@ -88,30 +60,25 @@ function App() {
       await axios.put('http://localhost:3001/api/apps', appsWithPositions);
       setApps(appsWithPositions);
 
-      // Auto-backup if enabled and path is set
-      const [autoBackupResponse, backupPathResponse] = await Promise.all([
-        axios.get('http://localhost:3001/api/settings/auto_backup'),
-        axios.get('http://localhost:3001/api/settings/backup_file_path')
-      ]);
-
+      // Auto-backup if enabled - send to server for file system storage
+      const autoBackupResponse = await axios.get('http://localhost:3001/api/settings/auto_backup');
       const autoBackupEnabled = autoBackupResponse.data.value === 'true';
-      const backupPath = backupPathResponse.data.value || '';
 
-      if (autoBackupEnabled && backupPath.trim()) {
-        // Auto-backup data
+      if (autoBackupEnabled) {
+        // Auto-backup data is sent to server which handles file system storage
         const timestamp = new Date().toISOString();
-        await axios.put('http://localhost:3001/api/settings/last_backup_date', { value: timestamp });
-
         const backupData = {
           timestamp,
           apps: appsWithPositions,
-          settings: { autoBackup: true, backupFilePath: backupPath }
+          settings: { autoBackup: true }
         };
 
-        // Save to the specified backup file path (for demo, using localStorage with meaningful key)
-        const backupKey = `backup_${backupPath.replace(/[/\\]/g, '_').replace(/[^\w]/g, '')}`;
-        localStorage.setItem(backupKey, JSON.stringify(backupData));
-        console.log('Auto-backup completed to path:', backupPath, 'at', timestamp);
+        try {
+          await axios.post('http://localhost:3001/api/auto-backup', backupData);
+          console.log('Auto-backup completed at', timestamp);
+        } catch (error) {
+          console.error('Auto-backup failed:', error);
+        }
       }
     } catch (error) {
       console.error('Failed to save apps or auto-backup:', error);

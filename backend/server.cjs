@@ -2,7 +2,7 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -280,6 +280,88 @@ app.put('/api/apps', (req, res) => {
       res.json({ message: 'Apps updated', count: apps.length });
     });
   });
+});
+
+// Auto-backup endpoint (writes to server file system)
+app.post('/api/auto-backup', async (req, res) => {
+  try {
+    // Get settings from database
+    const [autoBackupEnabled, backupPath] = await Promise.all([
+      new Promise((resolve, reject) => {
+        db.get('SELECT value FROM system_settings WHERE key = ?', ['auto_backup'], (err, row) => {
+          if (err) reject(err);
+          else resolve(row ? row.value === 'true' : false);
+        });
+      }),
+      new Promise((resolve, reject) => {
+        db.get('SELECT value FROM system_settings WHERE key = ?', ['backup_file_path'], (err, row) => {
+          if (err) reject(err);
+          else resolve(row ? row.value : '');
+        });
+      })
+    ]);
+
+    if (!autoBackupEnabled || !backupPath.trim()) {
+      return res.status(400).json({ error: 'Auto-backup not enabled or path not configured' });
+    }
+
+    // Ensure the backup directory exists
+    const backupDir = path.dirname(backupPath);
+    await fs.mkdir(backupDir, { recursive: true });
+
+    // Write backup data to file
+    const { timestamp, apps, settings } = req.body;
+    const backupData = { timestamp, apps, settings };
+    await fs.writeFile(backupPath, JSON.stringify(backupData, null, 2), 'utf8');
+
+    // Update last backup date
+    return new Promise((resolve, reject) => {
+      const stmt = db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)');
+      stmt.run('last_backup_date', timestamp, function(err) {
+        stmt.finalize();
+        if (err) {
+          reject(err);
+        } else {
+          res.json({ message: 'Auto-backup saved successfully', path: backupPath, timestamp });
+          resolve();
+        }
+      });
+    });
+
+  } catch (error) {
+    console.error('Auto-backup error:', error);
+    res.status(500).json({ error: 'Failed to save auto-backup: ' + error.message });
+  }
+});
+
+// Get auto-backup data (reads from server file system)
+app.get('/api/auto-backup', async (req, res) => {
+  try {
+    // Get backup path from settings
+    const backupPath = await new Promise((resolve, reject) => {
+      db.get('SELECT value FROM system_settings WHERE key = ?', ['backup_file_path'], (err, row) => {
+        if (err) reject(err);
+        else resolve(row ? row.value : '');
+      });
+    });
+
+    if (!backupPath.trim()) {
+      return res.status(400).json({ error: 'No backup file path configured' });
+    }
+
+    try {
+      const backupData = await fs.readFile(backupPath, 'utf8');
+      const parsedData = JSON.parse(backupData);
+      res.json(parsedData);
+    } catch (fileError) {
+      // File doesn't exist or can't be read
+      res.status(404).json({ error: 'Auto-backup file not found: ' + fileError.message });
+    }
+
+  } catch (error) {
+    console.error('Auto-backup retrieval error:', error);
+    res.status(500).json({ error: 'Failed to retrieve auto-backup: ' + error.message });
+  }
 });
 
 // System settings endpoints

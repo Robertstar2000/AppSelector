@@ -77,7 +77,7 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
         settings: { autoBackup, backupFilePath }
       };
 
-      // Download file
+      // Download file for user
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -86,10 +86,15 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
       link.click();
       URL.revokeObjectURL(url);
 
-      // Save to configured backup path
-      if (backupFilePath) {
-        const backupKey = `backup_${backupFilePath.replace(/[/\\]/g, '_').replace(/[^\w]/g, '')}`;
-        localStorage.setItem(backupKey, JSON.stringify(backupData));
+      // Save backup to server file system if auto-backup is configured
+      if (autoBackup && backupFilePath.trim()) {
+        try {
+          const serverBackupData = { timestamp, apps: freshApps, settings: { autoBackup: true } };
+          await axios.post('http://localhost:3001/api/auto-backup', serverBackupData);
+          console.log('Manual backup also saved to server auto-backup location');
+        } catch (serverError) {
+          console.error('Failed to save to server backup location:', serverError);
+        }
       }
 
       setLastBackup(timestamp);
@@ -108,22 +113,16 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    if (!backupFilePath.trim()) {
-      alert('No backup file path configured. Please set a backup path in the settings first.');
-      return;
-    }
-
     try {
-      // Restore from the configured backup path (localStorage key based on path)
-      const backupKey = `backup_${backupFilePath.replace(/[/\\]/g, '_').replace(/[^\w]/g, '')}`;
-      const backupDataJson = localStorage.getItem(backupKey);
+      // Restore from server file system backup
+      const autoBackupResponse = await axios.get('http://localhost:3001/api/auto-backup');
 
-      if (!backupDataJson) {
-        alert(`No backup found at the configured path: "${backupFilePath}". Please ensure auto-backup is enabled and data has been saved.`);
+      if (autoBackupResponse.status === 404) {
+        alert('No auto-backup found. Please ensure auto-backup is enabled and data has been saved.');
         return;
       }
 
-      const backupData = JSON.parse(backupDataJson);
+      const backupData = autoBackupResponse.data;
 
       if (!backupData || !Array.isArray(backupData.apps)) {
         alert('Invalid backup data format. The backup file appears to be corrupted.');
@@ -151,11 +150,15 @@ const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => {
       setLastBackup(backupData.timestamp);
       await loadApps(); // Refresh the apps list
 
-      alert('Data restored successfully from backup path! The page will reload.');
+      alert('Data restored successfully from auto-backup! The page will reload.');
       window.location.reload(); // Reload to show restored data
     } catch (error) {
       console.error('Error restoring backup:', error);
-      alert('Failed to restore backup. Please check that your backup path is correct and contains valid backup data.');
+      if (error.response && error.response.status === 404) {
+        alert('No auto-backup found. Please check that auto-backup is enabled and has saved data.');
+      } else {
+        alert('Failed to restore backup. Please check the server logs for more details.');
+      }
     }
   };
 
