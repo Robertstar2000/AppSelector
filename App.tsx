@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Search, 
-  Lock, 
-  Unlock, 
-  AlertTriangle 
+import axios from 'axios';
+import {
+  Plus,
+  Search,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Download
 } from 'lucide-react';
 import { INITIAL_APPS } from './constants';
 import { AppDefinition, AppType, AppStatus } from './types';
@@ -16,7 +18,10 @@ function App() {
   const [apps, setApps] = useState<AppDefinition[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
+  // Drag and Drop
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
   // Admin Mode Triggers
   const [secretCount, setSecretCount] = useState(0);
   
@@ -27,20 +32,29 @@ function App() {
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load apps from local storage or init with constants
+  // Load apps from API
   useEffect(() => {
-    const storedApps = localStorage.getItem('tallman_apps_v1');
-    if (storedApps) {
-      setApps(JSON.parse(storedApps));
-    } else {
-      setApps(INITIAL_APPS);
-      localStorage.setItem('tallman_apps_v1', JSON.stringify(INITIAL_APPS));
-    }
+    const fetchApps = async () => {
+      try {
+        const response = await axios.get('http://localhost:3001/api/apps');
+        setApps(response.data);
+      } catch (error) {
+        console.error('Failed to load apps:', error);
+        // Fallback to local constants if API fails
+        setApps(INITIAL_APPS);
+      }
+    };
+    fetchApps();
   }, []);
 
-  const saveApps = (newApps: AppDefinition[]) => {
-    setApps(newApps);
-    localStorage.setItem('tallman_apps_v1', JSON.stringify(newApps));
+  const saveApps = async (newApps: AppDefinition[]) => {
+    try {
+      await axios.put('http://localhost:3001/api/apps', newApps);
+      setApps(newApps);
+    } catch (error) {
+      console.error('Failed to save apps:', error);
+      setApps(newApps); // Update UI anyway
+    }
   };
 
   const handleAppClick = (app: AppDefinition) => {
@@ -75,25 +89,77 @@ function App() {
     setEditModalOpen(true);
   };
 
-  const handleSaveApp = (app: AppDefinition) => {
-    let newApps;
-    if (editingApp) {
-      newApps = apps.map(a => a.id === app.id ? app : a);
-    } else {
-      newApps = [...apps, app];
+  const handleSaveApp = async (app: AppDefinition) => {
+    try {
+      if (editingApp) {
+        await axios.put(`http://localhost:3001/api/apps/${app.id}`, app);
+      } else {
+        await axios.post('http://localhost:3001/api/apps', app);
+      }
+      // Refetch apps
+      const response = await axios.get('http://localhost:3001/api/apps');
+      setApps(response.data);
+      showToast('App saved successfully');
+    } catch (error) {
+      console.error('Failed to save app:', error);
+      showToast('Failed to save app');
     }
-    saveApps(newApps);
   };
 
-  const handleDeleteApp = (id: string) => {
-    const newApps = apps.filter(a => a.id !== id);
-    saveApps(newApps);
-    setEditModalOpen(false);
+  const handleDeleteApp = async (id: string) => {
+    try {
+      await axios.delete(`http://localhost:3001/api/apps/${id}`);
+      // Refetch apps
+      const response = await axios.get('http://localhost:3001/api/apps');
+      setApps(response.data);
+      setEditModalOpen(false);
+      showToast('App deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete app:', error);
+      showToast('Failed to delete app');
+    }
   };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (!isAdmin) return;
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (!isAdmin || draggedIndex === null || draggedIndex === dropIndex) return;
+
+    const newApps = [...apps];
+    const draggedApp = filteredApps[draggedIndex];
+    const dropApp = filteredApps[dropIndex];
+
+    // Get real indices in full apps array
+    const realDraggedIndex = apps.findIndex(app => app.id === draggedApp.id);
+    const realDropIndex = apps.findIndex(app => app.id === dropApp.id);
+
+    if (realDraggedIndex !== -1 && realDropIndex !== -1) {
+      newApps.splice(realDraggedIndex, 1);
+      newApps.splice(realDropIndex, 0, draggedApp);
+      saveApps(newApps);
+    }
+
+    setDraggedIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
   };
 
   const filteredApps = apps.filter(app => 
@@ -103,8 +169,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col relative bg-gray-50 text-slate-800">
-      <h1 style={{color: 'red'}}>Application is loading</h1>
-      
+
       {/* Navbar */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -135,11 +200,30 @@ function App() {
           {/* Right Actions */}
           <div className="flex items-center gap-4">
             {isAdmin && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-xs font-bold uppercase animate-pulse">
-                <Unlock className="w-3 h-3" /> Admin Mode
-              </div>
+              <>
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-xs font-bold uppercase animate-pulse">
+                  <Unlock className="w-3 h-3" /> Admin Mode
+                </div>
+                <button
+                  onClick={() => {
+                    // Client-side backup to local file
+                    const backupData = { timestamp: new Date().toISOString(), apps: apps };
+                    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `apps-backup-${new Date().toISOString().split('T')[0]}.json`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="p-2 text-gray-600 hover:text-tallman-blue hover:bg-blue-50 rounded-full transition-colors"
+                  title="Download Backup"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+              </>
             )}
-            
+
             {/* Date/Time Placeholder for dashboard feel */}
             <div className="text-right hidden sm:block">
                 <div className="text-sm font-bold text-gray-700">{new Date().toLocaleDateString()}</div>
@@ -177,30 +261,41 @@ function App() {
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredApps.map(app => (
-            <AppCard 
-              key={app.id} 
-              app={app} 
-              isAdmin={isAdmin} 
-              onClick={handleAppClick} 
-              onEdit={handleEdit}
-            />
-          ))}
-
-          {/* Add New Button (Admin Only) */}
-          {isAdmin && (
-            <button 
-                onClick={handleAddNew}
-                className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-tallman-blue hover:bg-blue-50 transition-all group h-full min-h-[180px]"
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+          {filteredApps.map((app, index) => (
+            <div
+              key={app.id}
+              draggable={isAdmin}
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, index)}
+              onDragEnd={handleDragEnd}
+              className={`${isAdmin ? 'cursor-move' : ''} ${draggedIndex === index ? 'opacity-50' : ''}`}
             >
-                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-                    <Plus className="w-6 h-6 text-gray-400 group-hover:text-tallman-blue" />
-                </div>
-                <span className="font-semibold text-gray-500 group-hover:text-tallman-blue">Add Application</span>
-            </button>
-          )}
+              <AppCard
+                app={app}
+                isAdmin={isAdmin}
+                onClick={handleAppClick}
+                onEdit={handleEdit}
+              />
+            </div>
+          ))}
         </div>
+
+        {/* Add New Button (Admin Only) */}
+        {isAdmin && (
+          <div className="flex justify-center">
+            <button
+                onClick={handleAddNew}
+                className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-tallman-blue hover:bg-blue-50 transition-all group"
+            >
+                <div className="w-5.5 h-5.5 rounded-full bg-gray-100 flex items-center justify-center mb-2 group-hover:bg-blue-100 transition-colors">
+                    <Plus className="w-3 h-3 text-gray-400 group-hover:text-tallman-blue" />
+                </div>
+                <span className="text-xs font-semibold text-gray-500 group-hover:text-tallman-blue">Add Application</span>
+            </button>
+          </div>
+        )}
 
         {filteredApps.length === 0 && !isAdmin && (
             <div className="flex flex-col items-center justify-center py-20 text-gray-400">

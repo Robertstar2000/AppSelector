@@ -6,8 +6,8 @@ import * as LucideIcons from 'lucide-react';
 interface AdminModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (app: AppDefinition) => void;
-  onDelete: (id: string) => void;
+  onSave: (app: AppDefinition) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   app: AppDefinition | null; // If null, we are creating
 }
 
@@ -45,10 +45,17 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onSave, onDele
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    await onSave(formData);
     onClose();
+  };
+
+  const handleDeleteClick = async () => {
+    if (app) {
+      await onDelete(app.id);
+      onClose();
+    }
   };
 
   // Get a list of valid icon names from Lucide to show in a helper or dropdown (simplified here)
@@ -155,9 +162,9 @@ const AdminModal: React.FC<AdminModalProps> = ({ isOpen, onClose, onSave, onDele
 
           <div className="flex gap-3 pt-4 border-t border-gray-100">
              {app && (
-                 <button 
-                    type="button" 
-                    onClick={() => onDelete(app.id)}
+                 <button
+                    type="button"
+                    onClick={handleDeleteClick}
                     className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-medium transition-colors"
                  >
                     <Trash2 className="w-5 h-5" />
