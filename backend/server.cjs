@@ -297,14 +297,20 @@ app.post('/api/auto-backup', async (req, res) => {
       return res.status(400).json({ error: 'Backup file path not configured' });
     }
 
+    // Clean the backup path (remove quotes if present)
+    const cleanBackupPath = backupPath.replace(/["']/g, '');
+    console.log('Original backup path:', backupPath);
+    console.log('Clean backup path:', cleanBackupPath);
+
     // Ensure the backup directory exists
-    const backupDir = path.dirname(backupPath);
+    const backupDir = path.dirname(cleanBackupPath);
+    console.log('Backup directory:', backupDir);
     await fs.mkdir(backupDir, { recursive: true });
 
     // Write backup data to file
     const { timestamp, apps, settings } = req.body;
     const backupData = { timestamp, apps, settings };
-    await fs.writeFile(backupPath, JSON.stringify(backupData, null, 2), 'utf8');
+    await fs.writeFile(cleanBackupPath, JSON.stringify(backupData, null, 2), 'utf8');
 
     // Update last backup date
     return new Promise((resolve, reject) => {
@@ -314,7 +320,7 @@ app.post('/api/auto-backup', async (req, res) => {
         if (err) {
           reject(err);
         } else {
-          res.json({ message: 'Auto-backup saved successfully', path: backupPath, timestamp });
+          res.json({ message: 'Auto-backup saved successfully', path: cleanBackupPath, timestamp });
           resolve();
         }
       });
