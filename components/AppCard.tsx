@@ -25,8 +25,8 @@ const AppCard: React.FC<AppCardProps> = ({ app, onClick, isAdmin, onEdit }) => {
         return;
     }
 
-    // Normal mode - don't allow clicking disabled or maintenance apps
-    if (isDisabled || isMaintenance) return;
+    // Normal mode - don't allow clicking disabled apps, but maintenance apps can be clicked
+    if (isDisabled) return;
     onClick(app);
   };
 
@@ -52,6 +52,16 @@ const AppCard: React.FC<AppCardProps> = ({ app, onClick, isAdmin, onEdit }) => {
            <div className="bg-yellow-100 border border-yellow-200 text-yellow-800 px-0 py-0 rounded-full flex items-center gap-0 shadow-xs">
              <LucideIcons.HardHat className="w-1.5 h-1.5" />
              <span className="text-[4px] font-bold uppercase tracking-wider">Under Construction</span>
+           </div>
+        </div>
+      )}
+
+      {/* Disabled Badge (Non-obtrusive) */}
+      {isDisabled && !isAdmin && (
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10 w-full flex justify-center pointer-events-none">
+           <div className="bg-red-100 border border-red-200 text-red-800 px-0 py-0 rounded-full flex items-center gap-0 shadow-xs">
+             <LucideIcons.XCircle className="w-1.5 h-1.5" />
+             <span className="text-[4px] font-bold uppercase tracking-wider">Not Yet Available</span>
            </div>
         </div>
       )}
