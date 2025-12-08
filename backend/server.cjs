@@ -372,74 +372,110 @@ app.get('/api/auto-backup', async (req, res) => {
     const hasFileExtension = path.extname(cleanBackupPath) !== '';
     const endsWithSeparator = cleanBackupPath.endsWith(path.sep) || cleanBackupPath.endsWith('/');
 
-    let searchPath;
-    if (!hasFileExtension && !endsWithSeparator) {
-      // No extension - treat as directory
-      searchPath = cleanBackupPath;
-    } else if (hasFileExtension) {
-      // Has extension - specific file
-      searchPath = path.dirname(cleanBackupPath);
+    let targetBackupFile = null;
+    let searchDirectory = null;
+
+    if (hasFileExtension) {
+      // If path has file extension, it's a specific file
+      targetBackupFile = cleanBackupPath;
+      searchDirectory = path.dirname(cleanBackupPath);
+      console.log('Specific backup file specified:', targetBackupFile);
     } else {
-      // Ends with separator - directory
-      searchPath = cleanBackupPath.slice(0, -1); // Remove trailing separator
+      // If no file extension, treat as directory
+      searchDirectory = cleanBackupPath;
+      console.log('Searching for backup files in directory:', searchDirectory);
     }
 
-    console.log('Searching for backup files in directory:', searchPath);
-
-    // If searchPath doesn't end with AppSelectorBackup, we might have path issues
-    if (!searchPath.includes('AppSelectorBackup')) {
-      console.log('WARNING: Search path does not contain expected AppSelectorBackup directory');
-      console.log('Backup path: ', backupPath);
-      console.log('Clean backup path: ', cleanBackupPath);
-    }
-
+    // Validate the search directory exists and is actually a directory
     try {
-      // Check if directory exists
-      const dirStats = await fs.stat(searchPath);
-      if (!dirStats.isDirectory()) {
-        return res.status(400).json({ error: 'Configured backup path is not a directory' });
+      const searchStats = await fs.stat(searchDirectory);
+      if (!searchStats.isDirectory()) {
+        return res.status(400).json({ error: 'Configured backup location is not a valid directory' });
       }
+    } catch (error) {
+      return res.status(400).json({ error: `Cannot access backup location: ${searchDirectory} - ${error.message}` });
+    }
 
-      // Get all .json files in the directory
-      const files = await fs.readdir(searchPath);
-      const jsonFiles = files.filter(file => file.endsWith('.json'));
+    let backupData = null;
+    let backupFilePath = null;
+
+    if (targetBackupFile) {
+      // Use specific file
+      backupFilePath = targetBackupFile;
+      console.log('Attempting to read specific backup file:', backupFilePath);
+
+      try {
+        const fileContent = await fs.readFile(backupFilePath, 'utf8');
+        backupData = JSON.parse(fileContent);
+        console.log('Successfully loaded backup file:', backupFilePath);
+      } catch (error) {
+        return res.status(400).json({ error: `Failed to read specified backup file: ${error.message}` });
+      }
+    } else {
+      // Find most recent backup file in directory
+      const files = await fs.readdir(searchDirectory);
+      const jsonFiles = files
+        .filter(file => file.endsWith('.json'))
+        .sort(); // Sort alphabetically, which should put timestamped files in order
+
       console.log('All files in directory:', files);
       console.log('JSON files found:', jsonFiles);
 
       if (jsonFiles.length === 0) {
-        return res.status(404).json({ error: `No backup files found in configured location: ${searchPath}` });
+        return res.status(404).json({ error: `No backup files found in directory: ${searchDirectory}` });
       }
 
-      // Read all backup files and find the most recent by timestamp
-      let mostRecentBackup = null;
-      let mostRecentTime = 0;
-
-      for (const file of jsonFiles) {
+      // Try files in order, assuming most recent is last in alphabetical sort
+      // (timestamped files like "apps-backup-2025-12-07 (7).json" sort after "apps-backup.json")
+      for (const file of jsonFiles.reverse()) { // Reverse to check newest first
         try {
-          const filePath = path.join(searchPath, file);
+          const filePath = path.join(searchDirectory, file);
           const fileContent = await fs.readFile(filePath, 'utf8');
-          const backupData = JSON.parse(fileContent);
+          const parsedData = JSON.parse(fileContent);
 
-          if (backupData.timestamp && backupData.timestamp > mostRecentTime) {
-            mostRecentTime = backupData.timestamp;
-            mostRecentBackup = backupData;
+          // Validate backup format
+          if (!parsedData.apps || !Array.isArray(parsedData.apps)) {
+            console.warn(`Skipping backup file ${file}: invalid apps array`);
+            continue;
+          }
+
+          if (!parsedData.timestamp) {
+            console.warn(`Skipping backup file ${file}: missing timestamp`);
+            continue;
+          }
+
+          // Check if this is more recent than previous valid backup
+          if (!backupData ||
+              !backupData.timestamp ||
+              parsedData.timestamp > backupData.timestamp) {
+            backupData = parsedData;
+            backupFilePath = filePath;
+            console.log(`Found valid backup file: ${file}, timestamp: ${parsedData.timestamp}`);
           }
         } catch (parseError) {
-          console.warn(`Skipping invalid backup file ${file}:`, parseError.message);
+          console.warn(`Skipping invalid backup file ${file}: ${parseError.message}`);
         }
       }
-
-      if (!mostRecentBackup) {
-        return res.status(404).json({ error: 'No valid backup files found' });
-      }
-
-      console.log('Using most recent backup from:', new Date(mostRecentTime));
-      res.json(mostRecentBackup);
-
-    } catch (dirError) {
-      console.error('Directory access error:', dirError);
-      res.status(400).json({ error: 'Unable to access backup directory: ' + dirError.message });
     }
+
+    if (!backupData) {
+      return res.status(404).json({ error: 'No valid backup files found in the specified location' });
+    }
+
+    // Final validation of backup data
+    if (!Array.isArray(backupData.apps)) {
+      return res.status(400).json({ error: 'Invalid backup format: apps field must be an array' });
+    }
+
+    if (!backupData.timestamp) {
+      return res.status(400).json({ error: 'Invalid backup format: timestamp field is required' });
+    }
+
+    console.log(`Using backup file: ${backupFilePath}`);
+    console.log(`Backup timestamp: ${backupData.timestamp}`);
+    console.log(`Number of apps in backup: ${backupData.apps.length}`);
+
+    res.json(backupData);
 
   } catch (error) {
     console.error('Auto-backup retrieval error:', error);
