@@ -386,16 +386,29 @@ app.get('/api/auto-backup', async (req, res) => {
 
     console.log('Searching for backup files in directory:', searchPath);
 
+    // If searchPath doesn't end with AppSelectorBackup, we might have path issues
+    if (!searchPath.includes('AppSelectorBackup')) {
+      console.log('WARNING: Search path does not contain expected AppSelectorBackup directory');
+      console.log('Backup path: ', backupPath);
+      console.log('Clean backup path: ', cleanBackupPath);
+    }
+
     try {
+      // Check if directory exists
+      const dirStats = await fs.stat(searchPath);
+      if (!dirStats.isDirectory()) {
+        return res.status(400).json({ error: 'Configured backup path is not a directory' });
+      }
+
       // Get all .json files in the directory
       const files = await fs.readdir(searchPath);
       const jsonFiles = files.filter(file => file.endsWith('.json'));
+      console.log('All files in directory:', files);
+      console.log('JSON files found:', jsonFiles);
 
       if (jsonFiles.length === 0) {
-        return res.status(404).json({ error: 'No backup files found in configured location' });
+        return res.status(404).json({ error: `No backup files found in configured location: ${searchPath}` });
       }
-
-      console.log('Found JSON files:', jsonFiles);
 
       // Read all backup files and find the most recent by timestamp
       let mostRecentBackup = null;
