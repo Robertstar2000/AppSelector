@@ -137,8 +137,81 @@ iisreset /restart
 
 | Environment | Frontend | Backend | Notes |
 |-------------|----------|---------|-------|
-| **Production** | `http://localhost:8080` | `http://localhost:3000` | IIS + Backend service |
-| **Development** | `http://localhost:3110` | `http://localhost:3000` | `npm run dev` |
+| **Production** | `http://localhost:8080` | `http://localhost:3001` | IIS + Backend service |
+| **Production (Domain)** | `http://apps.tallman.com` | `http://localhost:3001` | Domain access (see below) |
+| **Development** | `http://localhost:3110` | `http://localhost:3001` | `npm run dev` |
+
+---
+
+## Domain Access Setup (apps.tallman.com)
+
+To access the application using **apps.tallman.com** instead of localhost:
+
+### HTTP Setup (Simple):
+
+1. **Add to hosts file** (Run as Admin)
+   ```
+   Right-click: ADD-HOSTS-ENTRY.bat → Run as administrator
+   ```
+
+2. **Add IIS binding** (Run as Admin)
+   ```
+   Right-click: ADD-DOMAIN-BINDING.bat → Run as administrator
+   ```
+
+3. **Restart IIS**
+   ```
+   Right-click: RESTART-IIS-SITE.bat → Run as administrator
+   ```
+
+4. **Access via domain**
+   ```
+   http://apps.tallman.com
+   ```
+
+### HTTPS Setup (Secure - Recommended for Production):
+
+1. **Add to hosts file** (Run as Admin)
+   ```
+   Right-click: ADD-HOSTS-ENTRY.bat → Run as administrator
+   ```
+
+2. **Create SSL certificate** (Run as Admin)
+   ```
+   Right-click: CREATE-SELF-SIGNED-CERT.bat → Run as administrator
+   ```
+
+3. **Add HTTP binding** (Run as Admin)
+   ```
+   Right-click: ADD-DOMAIN-BINDING.bat → Run as administrator
+   Choose port 80
+   ```
+
+4. **Add HTTPS binding** (Run as Admin)
+   ```
+   Right-click: ADD-HTTPS-BINDING.bat → Run as administrator
+   Choose port 443
+   ```
+
+5. **Enable auto-redirect** (Optional)
+   ```
+   Right-click: ENABLE-HTTPS-REDIRECT.bat
+   Automatically redirects HTTP to HTTPS
+   ```
+
+6. **Restart IIS**
+   ```
+   Right-click: RESTART-IIS-SITE.bat → Run as administrator
+   ```
+
+7. **Access via secure domain**
+   ```
+   https://apps.tallman.com
+   ```
+
+📖 **For detailed instructions, see:**
+- Domain Setup: `DOMAIN-SETUP-GUIDE.md`
+- SSL/HTTPS: `SSL-COMMERCIAL-SETUP.md`
 
 ---
 
