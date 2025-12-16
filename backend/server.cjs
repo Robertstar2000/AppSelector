@@ -11,6 +11,19 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from the React app build directory
+app.use(express.static(path.join(__dirname, '..', 'dist')));
+
+// Add this AFTER static files middleware to handle client-side routing
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'), (err) => {
+    if (err) {
+      console.error('Error sending index.html:', err);
+      res.status(err.status || 500).end();
+    }
+  });
+});
+
 // Database setup
 const dbPath = path.join(__dirname, '..', 'apps.db');
 const db = new sqlite3.Database(dbPath);
