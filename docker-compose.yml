@@ -1,0 +1,13 @@
+﻿version: "3.8"
+services:
+  appselector:
+    build: .
+    image: appselector:latest
+    ports:
+      - "3100:3100"
+    environment:
+      - DOCKER_API_TOKEN=\
+    volumes:
+      - ./apps.db:/app/apps.db
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
