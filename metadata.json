@@ -1,0 +1,5 @@
+{
+  "name": "Tallman App Selector",
+  "description": "Internal corporate application dashboard for Tallman Equipment with hidden admin capabilities and Gemini-powered chat.",
+  "requestFramePermissions": []
+}

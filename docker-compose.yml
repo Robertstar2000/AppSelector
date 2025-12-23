@@ -1,0 +1,39 @@
+﻿version: "3.8"
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./apps.db:/app/apps.db
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+    ports:
+      - "3100:3000"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://backend:3001
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # llm:
+  #   provider:
+  #     type: model
+  #     options:
+  #       model: ai/granite-4.0-micro
+  #   networks:
+  #     - app-network
+
+networks:
+  app-network:
+    driver: bridge
