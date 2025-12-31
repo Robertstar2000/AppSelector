@@ -1,15 +1,28 @@
-FROM node:18-alpine
-
+# syntax=docker/dockerfile:1
+ARG NODE_VERSION=22.13.1
+FROM node:${NODE_VERSION}-slim AS base
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+# Copy only package.json and package-lock.json for dependency installation
+COPY --link package.json package-lock.json ./
 
-COPY . .
+# Install dependencies with cache for faster builds
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --production
 
-# Build the frontend
-RUN npm run build
+# Copy application source code
+COPY --link . .
 
-EXPOSE 3001
+# Set environment variables for production
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
-CMD ["node", "backend/server.cjs"]
+# Create a non-root user and switch to it
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+USER appuser
+
+# Expose port (change if your app uses a different port)
+EXPOSE 3000
+
+# Start the application (adjust entrypoint if needed)
+CMD ["node", "server.cjs"]

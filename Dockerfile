@@ -1,18 +1,44 @@
-﻿# Use official Node.js image
-FROM node:18-alpine
+# syntax=docker/dockerfile:1
+ARG NODE_VERSION=22.13.1
 
-# Set working directory
+# Build stage
+FROM node:${NODE_VERSION}-slim AS builder
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package*.json ./
-RUN npm install
+# Copy only package.json and package-lock.json for dependency install
+COPY --link package.json package-lock.json ./
 
-# Copy app source code
-COPY . .
+# Install dependencies with cache
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
-# Expose port
-EXPOSE 3000
+# Copy the rest of the source files
+COPY --link . .
 
-# Start the Vite dev server
-CMD ["npx", "vite", "--host", "0.0.0.0", "--port", "3000"]
+# Build the TypeScript project (assumes a build script is defined)
+RUN --mount=type=cache,target=/root/.npm \
+    npm run build
+
+# Remove dev dependencies, keep only production
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --production
+
+# Production stage
+FROM node:${NODE_VERSION}-slim AS final
+WORKDIR /app
+
+# Create a non-root user
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+
+# Copy built app and production dependencies from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
+
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+USER appuser
+
+# Start the app (assumes npm start runs the built code)
+CMD ["npm", "start"]

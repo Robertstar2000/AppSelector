@@ -13,9 +13,10 @@ services:
       - app-network
     restart: unless-stopped
 
-  frontend:
+  appselector:
     build:
       context: .
+    container_name: AppSelector
     ports:
       - "3100:3000"
     depends_on:

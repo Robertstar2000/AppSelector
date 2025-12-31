@@ -1,7 +1,84 @@
-﻿node_modules
-.git
-.env
-.vscode
+# Version control
+.git/
+.gitignore
+.hg/
+.svn/
+
+# Node.js dependencies and logs
+node_modules/
+npm-debug.log
+yarn-debug.log
+
+# Build outputs
+/dist/
+/build/
+/out/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test and debug artifacts
+test/
+tests/
+debug/
 *.log
-apps.db
-dist
+
+# Environment and secrets
+.env*
+*.env
+*.pem
+*.key
+*.crt
+config.local.*
+*.local.yml
+.local/
+local/
+
+# Temporary files and folders
+tmp/
+temp/
+*.tmp
+
+# Documentation
+/docs/
+*.md
+README*
+
+# Docker files (ignore except Dockerfile in backend)
+Dockerfile*
+docker-compose*
+
+# Project-specific backup and untracked folders
+untracked-backup-*/
+
+# Workspace and config files
+*.code-workspace
+*.config
+
+# Python (for completeness)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+
+# Go (for completeness)
+/vendor/
+*.test
+.go-cache/
+
+# Java (for completeness)
+target/
+*.class
+.gradle/
+
+# Miscellaneous
+*.bat
+*.ps1
+
+# Exclude empty workflow directories
+.zencoder/workflows/
+.zenflow/workflows/

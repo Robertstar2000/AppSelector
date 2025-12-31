@@ -1,0 +1,32 @@
+services:
+  typescript-root:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    # env_file: ./.env  # Uncomment if .env file exists
+    # Expose frontend port if needed (e.g., 3000 or 5173 for Vite)
+    # ports:
+    #   - "3000:3000"  # Uncomment and adjust if your frontend serves on a port
+    # Add depends_on if this service needs to wait for backend
+    # depends_on:
+    #   - javascript-backend
+    # Add comments for any additional configuration
+
+  javascript-backend:
+    build:
+      context: ./backend
+      dockerfile: backendDockerfile
+    restart: unless-stopped
+    init: true
+    # env_file: ./backend/.env  # Uncomment if .env file exists
+    ports:
+      - "3000:3000"  # Exposed in backendDockerfile
+    # Add depends_on if this service needs to wait for a database or other services
+    # Add comments for any additional configuration
+
+networks:
+  default:
+    # All services are on the default network for inter-service communication
+    # Add custom network configuration here if needed
