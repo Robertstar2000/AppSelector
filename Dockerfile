@@ -36,6 +36,9 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/package-lock.json ./
 
+# Install vite for preview command
+RUN npm install vite
+
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 USER appuser
