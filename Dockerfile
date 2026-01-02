@@ -40,5 +40,5 @@ ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 USER appuser
 
-# Start the app (assumes npm start runs the built code)
-CMD ["npm", "start"]
+# Start the app (serve the built static files)
+CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "3000"]

@@ -25,4 +25,4 @@ USER appuser
 EXPOSE 3000
 
 # Start the application (adjust entrypoint if needed)
-CMD ["node", "server.cjs"]
+CMD ["node", "backend/server.cjs"]
