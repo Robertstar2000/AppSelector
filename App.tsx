@@ -6,13 +6,15 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
-  Download
+  Download,
+  Settings
 } from 'lucide-react';
 import { INITIAL_APPS } from './constants';
 import { AppDefinition, AppType, AppStatus } from './types';
 import AppCard from './components/AppCard';
 import AdminModal from './components/AdminModal';
 import BackupModal from './components/BackupModal';
+import AdminSettingsModal from './components/AdminSettingsModal';
 // Removed ChatOverlay as LLM functionality was not needed
 
 function App() {
@@ -30,6 +32,7 @@ function App() {
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<AppDefinition | null>(null);
   const [isBackupModalOpen, setBackupModalOpen] = useState(false);
+  const [isAdminSettingsModalOpen, setAdminSettingsModalOpen] = useState(false);
   
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -256,9 +259,15 @@ function App() {
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
-    if (!isAdmin || searchQuery.trim() !== '') return; // Prevent drag when searching
+    console.log('handleDragStart called, index:', index, 'isAdmin:', isAdmin, 'searchQuery:', searchQuery);
+    if (!isAdmin || searchQuery.trim() !== '') {
+      console.log('Drag prevented: not admin or searching');
+      return; // Prevent drag when searching
+    }
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString()); // Add data for Firefox
+    console.log('Drag started for index:', index);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -267,15 +276,28 @@ function App() {
   };
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    console.log('handleDrop called, draggedIndex:', draggedIndex, 'dropIndex:', dropIndex);
+    console.log('handleDrop called, draggedIndex:', draggedIndex, 'dropIndex:', dropIndex, 'isAdmin:', isAdmin);
     e.preventDefault();
-    if (!isAdmin || draggedIndex === null || draggedIndex === dropIndex) return;
+    if (!isAdmin || draggedIndex === null || draggedIndex === dropIndex) {
+      console.log('Drop prevented: not admin, no dragged item, or same position');
+      return;
+    }
 
-    const newApps = [...apps];
-    const draggedApp = filteredApps[draggedIndex];
-    const dropApp = filteredApps[dropIndex];
+    // Use the current filteredApps state at drop time
+    const currentFilteredApps = apps.filter(app =>
+      app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.description.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
-    console.log('draggedApp:', draggedApp, 'dropApp:', dropApp);
+    const draggedApp = currentFilteredApps[draggedIndex];
+    const dropApp = currentFilteredApps[dropIndex];
+
+    if (!draggedApp || !dropApp) {
+      console.log('Drop failed: dragged or drop app not found');
+      return;
+    }
+
+    console.log('draggedApp:', draggedApp.name, 'dropApp:', dropApp.name);
 
     // Get real indices in full apps array
     const realDraggedIndex = apps.findIndex(app => app.id === draggedApp.id);
@@ -284,10 +306,13 @@ function App() {
     console.log('real indices:', realDraggedIndex, realDropIndex);
 
     if (realDraggedIndex !== -1 && realDropIndex !== -1) {
+      const newApps = [...apps];
       newApps.splice(realDraggedIndex, 1);
       newApps.splice(realDropIndex, 0, draggedApp);
       console.log('new array before save:', newApps.map(a => a.name));
       saveApps(newApps);
+    } else {
+      console.log('Drop failed: could not find real indices');
     }
 
     setDraggedIndex(null);
@@ -344,6 +369,13 @@ function App() {
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-xs font-bold uppercase animate-pulse">
                   <Unlock className="w-3 h-3" /> Admin Mode
                 </div>
+                <button
+                  onClick={() => setAdminSettingsModalOpen(true)}
+                  className="p-2 text-gray-600 hover:text-tallman-blue hover:bg-blue-50 rounded-full transition-colors"
+                  title="Open Admin Settings"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
                 <button
                   onClick={() => setBackupModalOpen(true)}
                   className="p-2 text-gray-600 hover:text-tallman-blue hover:bg-blue-50 rounded-full transition-colors"
@@ -490,6 +522,11 @@ function App() {
       <BackupModal
         isOpen={isBackupModalOpen}
         onClose={() => setBackupModalOpen(false)}
+      />
+
+      <AdminSettingsModal
+        isOpen={isAdminSettingsModalOpen}
+        onClose={() => setAdminSettingsModalOpen(false)}
       />
 
       {/* Admin Mode Overlay Hint (Optional visual cue when admin is active) */}

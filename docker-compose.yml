@@ -7,7 +7,7 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - ./apps.db:/app/apps.db
+      - .:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - app-network
@@ -23,6 +23,7 @@ services:
       - backend
     environment:
       - VITE_API_URL=http://backend:3001
+      - VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}
     networks:
       - app-network
     restart: unless-stopped

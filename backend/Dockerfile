@@ -13,16 +13,19 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy application source code
 COPY --link . .
 
+# Make entrypoint script executable (if it exists)
+RUN if [ -f backend/entrypoint.sh ]; then chmod +x backend/entrypoint.sh; else echo "backend/entrypoint.sh not found"; fi
+
 # Set environment variables for production
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
-# Create a non-root user and switch to it
+# Create a non-root user
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
-USER appuser
 
 # Expose port (change if your app uses a different port)
 EXPOSE 3000
 
-# Start the application (adjust entrypoint if needed)
-CMD ["node", "backend/server.cjs"]
+# Use entrypoint script
+ENTRYPOINT ["backend/entrypoint.sh"]
+CMD ["node backend/server.cjs"]

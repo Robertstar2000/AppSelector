@@ -5,7 +5,7 @@ module.exports = function registerAppsRoutes(app) {
   const router = express.Router();
 
   // Initialize database
-  const db = new sqlite3.Database('./apps.db', (err) => {
+  const db = new sqlite3.Database('/app/data/apps.db', (err) => {
     if (err) {
       console.error('Error opening database:', err.message);
     } else {

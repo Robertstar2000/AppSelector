@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
         https: {},
       },
       preview: {
+        allowedHosts: ["apps.tallmanequipment.com", ".tallmanequipment.com"],
         https: {},
       },
       plugins: [react()],
